@@ -11,21 +11,21 @@ class SimConfig:
     Full-field simulation runs (simulate_sssb) that generate snapshot figures per case.
     """
     params: SSSBParams = SSSBParams(
-        grid_N=(100, 100, 50),
+        grid_N=(100, 200, 50),
         p=0.01,
-        q=1.0,
+        q=1,
         gamma_J=0.1,
         k_J=0.5,
         D=0.05,
-        S0=0.0,
+        S0=0,
         Ncap=10,
         dt=0.02,
-        n_steps=1000,
+        n_steps=800,
         seed=0,
         verbose=True,
         verbose_freq=250,
     )
-    n_snaps: int = 3
+    n_snaps: int = 5
 
 
 @dataclass(frozen=True)
@@ -35,20 +35,21 @@ class AdoptConfig:
     Usually can use larger grids than the full-field runs because memory is tiny.
     """
     params: SSSBParams = SSSBParams(
-        grid_N=(50, 30, 20),
+        grid_N=(10, 6, 6),
         p=0.01,
-        q=1.0,
+        q=1,
         gamma_J=0.1,
         k_J=0.5,
         D=0.05,
         S0=0.0,
         Ncap=10,
-        dt=0.02,
+        dt=0.01,
         n_steps=1200,
         seed=0,
         verbose=True,
         verbose_freq=250,
     )
+    n_runs: int = 20
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,7 @@ class MeanConfig:
     Keep grid_N[0] moderate or this will be expensive.
     """
     params: SSSBParams = SSSBParams(
-        grid_N=(50, 100, 50), #120
+        grid_N=(25, 100, 50), #120
         p=0.05,
         q=1,
         gamma_J=0.1,

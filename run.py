@@ -93,7 +93,10 @@ def run_sim() -> None:
 
 
 def run_adopt() -> None:
-    params = ADOPT.params
+    params0 = ADOPT.params
+    n_runs = int(getattr(ADOPT, "n_runs", 1))
+    if n_runs <= 0:
+        raise ValueError("ADOPT.n_runs must be a positive integer")
 
     fig_root = Path("figures")
     fig_root.mkdir(exist_ok=True)
@@ -102,7 +105,7 @@ def run_adopt() -> None:
     data_root.mkdir(exist_ok=True)
 
     for dim in (1, 2, 3):
-        N_dim = params.grid_N[dim - 1]
+        N_dim = params0.grid_N[dim - 1]
         setups = [(False, False), (False, True), (True, False), (True, True)]
         total = len(setups)
 
@@ -112,24 +115,50 @@ def run_adopt() -> None:
             label = f"dim: {dim}, periodic: {periodic}, one-sided: {one_sided}"
             print(f"\n=== Running {label} ({idx}/{total}) ===")
 
-            out = simulate_sssb_adoption_curve(
-                dim=dim,
-                N=N_dim,
-                periodic=periodic,
-                one_sided=one_sided,
-                params=params,
-                _run_label=label,
-                _run_idx=idx,
-                _run_total=total,
-            )
-            curves[(periodic, one_sided)] = (out["t"], out["A"])
+            A_sum: np.ndarray | None = None
+            t_ref: np.ndarray | None = None
+
+            # Monte Carlo average
+            for r in range(n_runs):
+                # vary seed per run; keep everything else identical
+                params_r = params0.__class__(**{**params0.__dict__, "seed": params0.seed + r})
+
+                out = simulate_sssb_adoption_curve(
+                    dim=dim,
+                    N=N_dim,
+                    periodic=periodic,
+                    one_sided=one_sided,
+                    params=params_r,
+                    _run_label=(label + (f", MC {r+1}/{n_runs}" if n_runs > 1 else "")),
+                    _run_idx=idx,
+                    _run_total=total,
+                )
+
+                t = out["t"]
+                A = out["A"]
+
+                if t_ref is None:
+                    t_ref = t
+                    A_sum = np.array(A, dtype=np.float64, copy=True)
+                else:
+                    # sanity check: all runs must match the same time grid
+                    if t.shape != t_ref.shape or not np.all(t == t_ref):
+                        raise ValueError("simulate_sssb_adoption_curve returned inconsistent t grids across runs")
+                    A_sum += A.astype(np.float64)
+
+            assert t_ref is not None and A_sum is not None
+            A_mean = A_sum / float(n_runs)
+            curves[(periodic, one_sided)] = (t_ref, A_mean)
 
         fig_path = fig_root / f"adoption_curves_dim{dim}.png"
+        title = f"Cumulative adoption curves (dim={dim}, N={N_dim})"
+        if n_runs > 1:
+            title += f" — mean over {n_runs} runs"
         save_adoption_curves(
             curves=curves,
             dim=dim,
             out_path=fig_path,
-            title=f"Cumulative adoption curves (dim={dim}, N={N_dim})",
+            title=title,
         )
 
         npz_path = data_root / f"adoption_curves_dim{dim}.npz"
