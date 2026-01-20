@@ -59,21 +59,21 @@ class MeanConfig:
     """
     params: SSSBParams = SSSBParams(
         grid_N=(50, 100, 50), #120
-        p=0.02,
-        q=0.3,
-        gamma_J=0.5,
-        k_J=0.1,
-        D=0.02,
+        p=0.05,
+        q=1,
+        gamma_J=0.1,
+        k_J=0.05,
+        D=0.5,
         S0=0,
         Ncap=25,
-        dt=0.02,
-        n_steps=1000,
+        dt=0.01,
+        n_steps=500,
         seed=0,
         verbose=False,
         verbose_freq=1000,
     )
-    n_runs: int = 500
-    n_snaps: int = 3
+    n_runs: int = 1000
+    n_snaps: int = 5
     dim: int = 1
     periodic: bool = False
 

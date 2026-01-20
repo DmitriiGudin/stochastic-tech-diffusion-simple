@@ -346,16 +346,18 @@ def simulate_sssb_selected_snapshots(
     params: SSSBParams,
     snapshot_tidx: np.ndarray,
     *,
-    field: str = "U",  # "U","V","I","J"
+    field: str = "U",  # "U","V","I","J","UV","UI","VJ", etc.
     _run_label: str = "",
     _run_idx: int = 1,
     _run_total: int = 1,
     _t0_wall: Optional[float] = None,
 ) -> np.ndarray:
     """
-    Runs the SSSB model but only returns `field` at the specified timestep indices.
+    Runs the SSSB model but only returns selected field(s) at specified timestep indices.
 
-    Returns: snaps[k, ...] where k indexes snapshot_tidx, and ... is grid shape.
+    If `field` is a single letter (e.g. "U"), returns snaps[k, ...].
+    If `field` contains multiple letters (e.g. "UV"), returns snaps[k, f, ...]
+      where f indexes the requested fields in the order given.
     """
     if dim not in (1, 2, 3):
         raise ValueError("dim must be 1, 2, or 3")
@@ -367,8 +369,10 @@ def simulate_sssb_selected_snapshots(
         raise ValueError("snapshot_tidx contains out-of-range indices")
 
     field = field.upper()
-    if field not in ("U", "V", "I", "J"):
-        raise ValueError("field must be one of U,V,I,J")
+    allowed = {"U", "V", "I", "J"}
+    fields = list(field)  # allows "UV" etc.
+    if any(f not in allowed for f in fields):
+        raise ValueError("field must consist of letters from {U,V,I,J}, e.g. 'U' or 'UV'")
 
     shape = (N,) * dim
     rng = np.random.default_rng(params.seed)
@@ -400,17 +404,25 @@ def simulate_sssb_selected_snapshots(
     if _t0_wall is None:
         _t0_wall = time.time()
 
-    # We’ll record in order of snapshot_tidx
     order = np.argsort(snapshot_tidx)
     tidx_sorted = snapshot_tidx[order]
 
-    snaps = np.zeros((tidx_sorted.size, *shape), dtype=np.float64)
+    # snaps shape depends on number of requested fields
+    if len(fields) == 1:
+        snaps = np.zeros((tidx_sorted.size, *shape), dtype=np.float64)
+    else:
+        snaps = np.zeros((tidx_sorted.size, len(fields), *shape), dtype=np.float64)
+
+    def pack_current() -> np.ndarray:
+        cur_map = {"U": U, "V": V, "I": I, "J": J}
+        if len(fields) == 1:
+            return cur_map[fields[0]].astype(np.float64)
+        return np.stack([cur_map[f].astype(np.float64) for f in fields], axis=0)
+
     snap_ptr = 0
 
-    # record at t=0 if requested
     if tidx_sorted[0] == 0:
-        cur = {"U": U, "V": V, "I": I, "J": J}[field]
-        snaps[snap_ptr] = cur.astype(np.float64)
+        snaps[snap_ptr] = pack_current()
         snap_ptr += 1
 
     T = int(params.n_steps)
@@ -447,14 +459,12 @@ def simulate_sssb_selected_snapshots(
         J = np.maximum(J, 0.0)
 
         while snap_ptr < tidx_sorted.size and t == tidx_sorted[snap_ptr]:
-            cur = {"U": U, "V": V, "I": I, "J": J}[field]
-            snaps[snap_ptr] = cur.astype(np.float64)
+            snaps[snap_ptr] = pack_current()
             snap_ptr += 1
 
         if snap_ptr >= tidx_sorted.size:
             break
 
-    # return in original order
     inv = np.empty_like(order)
     inv[order] = np.arange(order.size)
     return snaps[inv]

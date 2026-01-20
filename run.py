@@ -174,26 +174,18 @@ def run_mean() -> None:
         for r in range(n_runs):
             params_r = params.__class__(**{**base_kwargs, "seed": params.seed + r})
 
-            snaps_U = simulate_sssb_selected_snapshots(
+            snaps = simulate_sssb_selected_snapshots(
                 dim=dim,
                 N=N1,
                 periodic=periodic,
                 one_sided=one_sided,
                 params=params_r,
                 snapshot_tidx=tidx,
-                field="U",
-            ).reshape(tidx.size, N1).astype(np.float64)
-
-            snaps_V = simulate_sssb_selected_snapshots(
-                dim=dim,
-                N=N1,
-                periodic=periodic,
-                one_sided=one_sided,
-                params=params_r,
-                snapshot_tidx=tidx,
-                field="V",
-            ).reshape(tidx.size, N1).astype(np.float64)
-
+                field="UV",
+            ).astype(np.float64)  # shape (n_snaps, 2, N)
+            
+            snaps_U = snaps[:, 0, :]
+            snaps_V = snaps[:, 1, :]
             sum_U += snaps_U
             sum_V += snaps_V
 
