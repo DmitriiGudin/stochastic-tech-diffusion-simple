@@ -9,7 +9,7 @@ Python 3.12
 
 2. Run
 ```
-python run.py -- all.
+python run.py -- all
 ```
 
 The results will appear in the *figures* folder.
