@@ -12,4 +12,7 @@ Python 3.12
 python run.py -- all
 ```
 
-The results will appear in the *figures* folder.
+The results will appear in the *figures* folder. To replicate the boundary effects curve in 1D, change the value of *dim* (line 78) in *config.py* from *2* to *1*, then run
+```
+python run.py -- mean
+```
