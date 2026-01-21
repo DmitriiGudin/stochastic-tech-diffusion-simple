@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Tuple, Dict
 
 from core import simulate_sssb, simulate_sssb_adoption_curve, simulate_sssb_selected_snapshots
-from plotting import save_snapshots_2x2, save_adoption_curves, snapshot_indices, save_mean_1d_uv_overlay_timeseries_plots
+from plotting import save_snapshots_2x2, save_adoption_curves, snapshot_indices, save_mean_1d_uv_overlay_timeseries_plots, save_mean_uv_overlay_timeseries_plots
 
 from config import SIM, ADOPT, MEAN
 
@@ -179,64 +179,94 @@ def run_mean() -> None:
     dim = MEAN.dim
     periodic = MEAN.periodic
 
-    if dim != 1:
-        raise ValueError("MeanConfig currently supports only dim=1.")
+    if dim not in (1, 2):
+        raise ValueError("MeanConfig currently supports only dim=1 or dim=2.")
     if periodic is True:
         raise ValueError("This mean study is intended for non-periodic only (periodic=False).")
 
-    N1 = params.grid_N[0]
+    N_dim = params.grid_N[dim - 1]
     tidx = snapshot_indices(n_steps=params.n_steps, n_snaps=n_snaps)
 
-    out_dir = Path("figures") / "mean_1d"
+    out_dir = Path("figures") / ("mean_1d" if dim == 1 else "mean_2d_collapsed")
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    debug_first = 10  # print diagnostics for first 10 runs
+    last_k = tidx.size - 1  # last snapshot index
+
+    def collapse_if_needed(snaps_uv: np.ndarray) -> np.ndarray:
+        """
+        snaps_uv: (n_snaps, 2, *shape)
+          dim=1 -> (n_snaps, 2, N)
+          dim=2 -> (n_snaps, 2, N, N)
+
+        Returns:
+          dim=1 -> same shape (n_snaps, 2, N)
+          dim=2 -> collapsed along y (axis=2) => (n_snaps, 2, N_x)
+                  Here we interpret:
+                    field[y, x] with y = axis 0, x = axis 1
+                  so average over y => mean over axis=2 after (n_snaps,2,y,x) layout.
+        """
+        if dim == 1:
+            return snaps_uv
+        # snaps_uv shape: (n_snaps, 2, N, N) where axes are (y, x) in the last two dims
+        return snaps_uv.mean(axis=2)  # average over y -> (n_snaps, 2, N_x)
 
     def run_mean_uv(one_sided: bool) -> tuple[np.ndarray, np.ndarray]:
         """
-        Returns (mean_U, mean_V) each shape (n_snaps, N1),
-        computed via streaming mean (no big all_runs array).
+        Returns (mean_U, mean_V) each shape (n_snaps, N_dim_collapsed),
+        computed via streaming mean.
+        For dim=1: N_dim_collapsed = N_dim
+        For dim=2: N_dim_collapsed = N_dim (x-axis length), after collapsing y.
         """
-        sum_U = np.zeros((tidx.size, N1), dtype=np.float64)
-        sum_V = np.zeros((tidx.size, N1), dtype=np.float64)
+        sum_U = np.zeros((tidx.size, N_dim), dtype=np.float64)
+        sum_V = np.zeros((tidx.size, N_dim), dtype=np.float64)
 
         base_kwargs = {**params.__dict__, "verbose": False}
 
         for r in range(n_runs):
-            params_r = params.__class__(**{**base_kwargs, "seed": params.seed + r})
+            seed_r = params.seed + r
+            params_r = params.__class__(**{**base_kwargs, "seed": seed_r})
 
             snaps = simulate_sssb_selected_snapshots(
                 dim=dim,
-                N=N1,
+                N=N_dim,
                 periodic=periodic,
                 one_sided=one_sided,
                 params=params_r,
                 snapshot_tidx=tidx,
                 field="UV",
-            ).astype(np.float64)  # shape (n_snaps, 2, N)
-            
-            snaps_U = snaps[:, 0, :]
-            snaps_V = snaps[:, 1, :]
-            sum_U += snaps_U
-            sum_V += snaps_V
+            ).astype(np.float64)  # (n_snaps, 2, ...)
 
-            # Optional progress print (mean runs can be long)
+            snaps = collapse_if_needed(snaps)  # now (n_snaps, 2, N_dim)
+
+            # --- DEBUG: show first 10 nodes at the last snapshot time for first 10 runs
+            if r < debug_first:
+                u10 = snaps[last_k, 0, :10]
+                v10 = snaps[last_k, 1, :10]
+                print(
+                    f"[DEBUG mean] dim={dim} one_sided={one_sided} run={r+1:02d}/{n_runs} seed={seed_r} "
+                    f"t={int(tidx[last_k])} U[:10]={np.array2string(u10, precision=3)} "
+                    f"V[:10]={np.array2string(v10, precision=3)}"
+                )
+
+            sum_U += snaps[:, 0, :]
+            sum_V += snaps[:, 1, :]
+
             if getattr(params, "verbose", False) and (r == 0 or (r + 1) % 50 == 0 or (r + 1) == n_runs):
-                print(f"  mean study: one_sided={one_sided} --- run {r+1}/{n_runs}")
+                print(f"  mean study: dim={dim}, one_sided={one_sided} --- run {r+1}/{n_runs}")
 
         mean_U = sum_U / float(n_runs)
         mean_V = sum_V / float(n_runs)
         return mean_U, mean_V
 
-    print("\n=== Computing means for 1D non-periodic ===")
+    print(f"\n=== Computing means for dim={dim} non-periodic ===")
 
-    # two-directional (one_sided=False)
     mean_U_twodir, mean_V_twodir = run_mean_uv(one_sided=False)
-
-    # one-directional (one_sided=True)
     mean_U_onedir, mean_V_onedir = run_mean_uv(one_sided=True)
 
     # Save exactly n_snaps figures total (one per timestep),
     # each with two panels (U top, V bottom) and both directionality curves.
-    save_mean_1d_uv_overlay_timeseries_plots(
+    save_mean_uv_overlay_timeseries_plots(
         mean_U_twodir=mean_U_twodir,
         mean_U_onedir=mean_U_onedir,
         mean_V_twodir=mean_V_twodir,
@@ -244,7 +274,7 @@ def run_mean() -> None:
         tidx=tidx,
         out_dir=out_dir,
         base_name="mean_values_overlay",
-        title="Mean values",
+        title=("Mean values" + ("" if dim == 1 else " (2D collapsed over y)")),
     )
 
     print("Saved mean overlay plots to:", out_dir)

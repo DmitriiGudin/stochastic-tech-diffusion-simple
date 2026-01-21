@@ -42,14 +42,14 @@ class AdoptConfig:
         k_J=0.5,
         D=0.05,
         S0=0.0,
-        Ncap=10,
-        dt=0.01,
-        n_steps=1200,
+        Ncap=5,
+        dt=0.1,
+        n_steps=300,
         seed=0,
         verbose=True,
         verbose_freq=250,
     )
-    n_runs: int = 20
+    n_runs: int = 100
 
 
 @dataclass(frozen=True)
@@ -59,23 +59,23 @@ class MeanConfig:
     Keep grid_N[0] moderate or this will be expensive.
     """
     params: SSSBParams = SSSBParams(
-        grid_N=(25, 100, 50), #120
+        grid_N=(120, 30, 50), #120
         p=0.05,
-        q=1,
+        q=5,
         gamma_J=0.1,
-        k_J=0.05,
-        D=0.5,
+        k_J=0.01,
+        D=1,
         S0=0,
-        Ncap=25,
-        dt=0.01,
-        n_steps=500,
+        Ncap=20,
+        dt=0.02,
+        n_steps=200,
         seed=0,
         verbose=False,
-        verbose_freq=1000,
+        verbose_freq=10000,
     )
-    n_runs: int = 1000
-    n_snaps: int = 5
-    dim: int = 1
+    n_runs: int = 2000
+    n_snaps: int = 10
+    dim: int = 2
     periodic: bool = False
 
 

@@ -354,3 +354,62 @@ def save_mean_1d_uv_overlay_timeseries_plots(
         fname = out_dir / f"{base_name}_t{t:05d}.png"
         fig.savefig(fname, dpi=170)
         plt.close(fig)
+        
+        
+def save_mean_uv_overlay_timeseries_plots(
+    mean_U_twodir: np.ndarray,   # (n_snaps, N)
+    mean_U_onedir: np.ndarray,   # (n_snaps, N)
+    mean_V_twodir: np.ndarray,   # (n_snaps, N)
+    mean_V_onedir: np.ndarray,   # (n_snaps, N)
+    tidx: np.ndarray,            # (n_snaps,)
+    out_dir: Path,
+    *,
+    base_name: str = "mean_values_overlay",
+    title: str = "Mean values",
+) -> None:
+    """
+    One figure per snapshot time.
+    Each figure: two panels (U top, V bottom), x=Node ID, y=Value.
+    Overlays two-directional and one-directional with different colors.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # basic shape checks
+    if mean_U_twodir.shape != mean_U_onedir.shape:
+        raise ValueError("mean_U_twodir and mean_U_onedir must have same shape")
+    if mean_V_twodir.shape != mean_V_onedir.shape:
+        raise ValueError("mean_V_twodir and mean_V_onedir must have same shape")
+    if mean_U_twodir.shape != mean_V_twodir.shape:
+        raise ValueError("U and V mean arrays must have same shape")
+    if mean_U_twodir.ndim != 2:
+        raise ValueError("Mean arrays must be 2D (n_snaps, N)")
+    if tidx.shape[0] != mean_U_twodir.shape[0]:
+        raise ValueError("tidx length must match n_snaps")
+
+    n_snaps, N = mean_U_twodir.shape
+    x = np.arange(N, dtype=int)
+
+    for k in range(n_snaps):
+        t = int(tidx[k])
+
+        fig, axes = plt.subplots(2, 1, figsize=(12, 7), sharex=True, constrained_layout=True)
+        axU, axV = axes[0], axes[1]
+
+        # U panel
+        axU.plot(x, mean_U_twodir[k], label="Two-directional")
+        axU.plot(x, mean_U_onedir[k], label="One-directional")
+        axU.set_ylabel("Value")
+        axU.legend()
+
+        # V panel
+        axV.plot(x, mean_V_twodir[k], label="Two-directional")
+        axV.plot(x, mean_V_onedir[k], label="One-directional")
+        axV.set_ylabel("Value")
+        axV.set_xlabel("Node ID")
+        axV.legend()
+
+        fig.suptitle(title)
+
+        fname = out_dir / f"{base_name}_t{t:05d}.png"
+        fig.savefig(fname, dpi=170)
+        plt.close(fig)
